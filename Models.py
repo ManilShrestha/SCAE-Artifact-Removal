@@ -63,3 +63,34 @@ class ArtifactCNN(nn.Module):
         x = self.dropout(x)
         x = self.fc2(x)
         return F.softmax(x, dim=1)
+
+
+
+
+class testCNN(nn.Module):
+    def __init__(self):
+        super(testCNN, self).__init__()
+        # Input size: [batch_size, 1, 64, 64]
+        self.conv1 = nn.Conv2d(in_channels=1, out_channels=8, kernel_size=5, stride=1, padding=2)
+        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
+        
+        self.conv2 = nn.Conv2d(in_channels=8, out_channels=16, kernel_size=5, stride=1, padding=2)
+        # Output size after second conv: [batch_size, 16, 16, 16] 
+        self.flatten = nn.Flatten()
+
+        self.fc1 = nn.Linear(4096, 120)
+        self.fc2 = nn.Linear(120, 84)
+        self.fc3 = nn.Linear(84, 2)  # Output layer for binary classification
+        
+    def forward(self, x):
+        x = self.pool(F.relu(self.conv1(x)))  # [batch_size, 8, 32, 32]
+        x = self.pool(F.relu(self.conv2(x)))  # [batch_size, 16, 16, 16]
+        
+        x = self.flatten(x)
+        
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        
+        return x
+
