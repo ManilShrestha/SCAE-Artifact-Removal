@@ -14,7 +14,9 @@ from lib.Models import StackedConvAutoencoder, ArtifactCNN
 from lib.Utilities import *
 from sklearn.metrics import accuracy_score, f1_score, recall_score, precision_score
 
-best_cnn_model='models/CNN_best_model_ABP.pth'
+
+best_cnn_model='models/CNN_best_model_ECG.pth'
+
 # Hyperparameters
 num_classes = 2
 num_epochs = 100  # Number of training epochs
@@ -23,12 +25,12 @@ lr = 0.0001
 # Define variables
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 torch.manual_seed(6)
-best_scae_model = '../models/SCAE_best.pth'
+best_scae_model = 'models/SCAE_ECG_best.pth'
 
 # Dataset and dataloader 
-train_dataset = SCAEDataset(root_dir="data/abp/train")
-val_dataset = SCAEDataset(root_dir="data/abp/val")
-test_dataset = SCAEDataset(root_dir="data/abp/test")
+train_dataset = SCAEDataset(root_dir="data/ecg/train")
+val_dataset = SCAEDataset(root_dir="data/ecg/val")
+test_dataset = SCAEDataset(root_dir="data/ecg/test")
 
 train_loader = DataLoader(train_dataset, batch_size=32, num_workers=4,shuffle=True, pin_memory=True)
 val_loader = DataLoader(val_dataset, batch_size=32, num_workers=4,shuffle=True, pin_memory=True)

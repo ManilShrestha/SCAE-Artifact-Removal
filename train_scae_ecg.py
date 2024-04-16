@@ -13,17 +13,17 @@ from tqdm import tqdm
 from lib.CustomDatasets import SCAEDataset
 from lib.Models import StackedConvAutoencoder
 
-best_scae_model = 'models/SCAE_ABP_best.pth'
 # Hyperparameters
 lr = 0.001
 num_epochs = 100  # Number of epochs to train for
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+best_scae_model = 'models/SCAE_ECG_best.pth'
 
 # Dataset and dataloader 
-train_dataset = SCAEDataset(root_dir="data/abp/train")
-val_dataset = SCAEDataset(root_dir="data/abp/val")
-test_dataset = SCAEDataset(root_dir="data/abp/test")
+train_dataset = SCAEDataset(root_dir="data/ecg/train")
+val_dataset = SCAEDataset(root_dir="data/ecg/val")
+test_dataset = SCAEDataset(root_dir="data/ecg/test")
 
 print(f"Training Dataset size: {len(train_dataset)}")
 

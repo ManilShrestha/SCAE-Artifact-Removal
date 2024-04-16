@@ -9,7 +9,6 @@ import scipy
 from scipy.ndimage import gaussian_filter1d
 
 from PIL import Image
-
 from tqdm import tqdm
 
 
@@ -91,23 +90,26 @@ class PreprocessData:
     
         # Now filter the artifacts whose more than 50% data is less than zero
         # Calculate the percentage < 0 in the array
-        artifact_raw_clean = []
-        for arr in artifact_raw:
-            if arr.size==0:
-                continue
-            percentage = (np.sum(arr < 0) / arr.size) * 100
+        if self.signal_type=='ABP':
+            artifact_raw_clean = []
+            for arr in artifact_raw:
+                if arr.size==0:
+                    continue
+                percentage = (np.sum(arr < 0) / arr.size) * 100
 
-            # Check if the percentage is greater than 50%
-            if percentage >= 50:
-                count_less_than_zero = np.sum(arr < 0)
-                print(f"Out of {arr.shape}, {count_less_than_zero} are negative values")
-            else:
-                artifact_raw_clean.append(arr)
+                # Check if the percentage is greater than 50%
+                if percentage >= 50:
+                    count_less_than_zero = np.sum(arr < 0)
+                    print(f"Out of {arr.shape}, {count_less_than_zero} are negative values")
+                else:
+                    artifact_raw_clean.append(arr)
 
-        return artifact_raw_clean
-    
+            return artifact_raw_clean
 
-    def get_non_artifacts_raw(self):
+        if self.signal_type=='ECG':
+            return artifact_raw
+
+    def get_non_artifacts_raw(self, num_segments=10000):
         """Get raw signals with no overlap to artifacts
         """
         
@@ -133,7 +135,7 @@ class PreprocessData:
             data, timestamp = dataset[:], timestamp[:]
 
         # Generate 5000 unique random values from 0 to 58360000 without replacement
-        random_values = np.random.choice(range(len(timestamp)), 10000, replace=False)
+        random_values = np.random.choice(range(len(timestamp)), num_segments, replace=False)
 
         na_signals = []
         for r in random_values:
@@ -148,7 +150,7 @@ class PreprocessData:
 
 
     
-    def create_images_from_signal(self, raw_signal, signal_type = 'artifact', num_images=None):
+    def create_images_from_signal(self, raw_signal, pulse_type = 'artifact', num_images=None):
         """Creates images from the signal passed 
 
         Args:
@@ -157,7 +159,7 @@ class PreprocessData:
             num_images (int): Number of images to create. Optional for artifact compulsory for non-artifact.
         """
 
-        if signal_type == 'non-artifact' and num_images is None:
+        if pulse_type=='non-artifact' and num_images is None:
             raise ValueError('num_images is required for non-artifact signal types')
 
         count_pulses=1
@@ -172,31 +174,46 @@ class PreprocessData:
                 image_to_save = Image.fromarray(image.astype('uint8')*255, 'L')
 
                 # If the signal is non-artifact, and if num of pulses exceeds the num_images, stop
-                if signal_type=='non-artifact':
-                    image_to_save.save(f'{self.train_non_artifact_folder}{signal_type}_{count_pulses}.jpg')
+                if pulse_type=='non-artifact':
+                    image_to_save.save(f'{self.train_non_artifact_folder}{pulse_type}_{count_pulses}.jpg')
                     if count_pulses >= num_images:
                         print(f'{count_pulses+1} number of pulse images (non-artifact ridden) have been created.')		
                         return {count_pulses+1}
                 else:
-                    image_to_save.save(f'{self.train_artifact_folder}{signal_type}_{count_pulses}.jpg')
+                    image_to_save.save(f'{self.train_artifact_folder}{pulse_type}_{count_pulses}.jpg')
                 
                 count_pulses+=1
 
-        print(f'{count_pulses+1} number of pulse images have been created for {signal_type}.')
+        print(f'{count_pulses+1} number of pulse images have been created for {pulse_type}.')
 
 
     def get_pulses(self, signal, sigma=2):
-        filtered_signal = gaussian_filter1d(signal, sigma=sigma)
+        if self.signal_type=='ABP':
+            filtered_signal = gaussian_filter1d(signal, sigma=sigma)
 
-        troughs, _ = scipy.signal.find_peaks(-filtered_signal)
-        pulses = []
-        for i in range(len(troughs)-1):
-            s=signal[troughs[i]:troughs[i+1]]
+            troughs, _ = scipy.signal.find_peaks(-filtered_signal)
+            pulses = []
+            for i in range(len(troughs)-1):
+                s=signal[troughs[i]:troughs[i+1]]
+                
+                if len(s)>0:
+                    pulses.append(s)
             
-            if len(s)>0:
-                pulses.append(s)
+            return pulses 
         
-        return pulses 
+        if self.signal_type=='ECG':
+            signal = gaussian_filter1d(signal, sigma=sigma)
+
+            # Minimum height is 0.4 and there needs to atleast 100 data points between peaks.
+            peaks, _ = scipy.signal.find_peaks(signal, height=0.4, distance=100)    
+            pulses = []
+            for i in range(len(peaks)-1):
+                s=signal[peaks[i]:peaks[i+1]]
+                
+                if len(s)>0:
+                    pulses.append(s)
+
+            return pulses
     
 
     def interpolate_and_normalize(self, signal):
