@@ -21,9 +21,9 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 best_scae_model = '../models/SCAE_best.pth'
 
 # Dataset and dataloader 
-train_dataset = SCAEDataset(root_dir="../data/abp/train")
-val_dataset = SCAEDataset(root_dir="../data/abp/val")
-test_dataset = SCAEDataset(root_dir="../data/abp/test")
+train_dataset = SCAEDataset(root_dir="data/abp/train")
+val_dataset = SCAEDataset(root_dir="data/abp/val")
+test_dataset = SCAEDataset(root_dir="data/abp/test")
 
 print(f"Training Dataset size: {len(train_dataset)}")
 
