@@ -47,7 +47,7 @@ class PreprocessData:
         self.test_non_artifact_folder = out_path + 'test/non-artifact/'
 
         # Load the annotation information in pandas dataframe
-        df_annotation = pd.read_csv(self.annotation_path)
+        df_annotation = pd.read_csv(self.annotation_file_path)
         df_annotation_filtered = df_annotation[(df_annotation['modality']==annotation_metadata['modality']) & (df_annotation['location']==annotation_metadata['location'])]
 
         self.artifacts = df_annotation_filtered[["start_time","end_time"]].to_numpy() * int(annotation_metadata['scale_wrt_hd5'])
@@ -59,8 +59,11 @@ class PreprocessData:
         folders = [self.train_artifact_folder, self.train_non_artifact_folder, self.val_artifact_folder, self.val_non_artifact_folder, self.test_artifact_folder, self.test_non_artifact_folder]
 
         for folder in folders:
+            print(f'Cleaning folder {folder}')
+
             if os.path.exists(folder):
                 shutil.rmtree(folder)
+            
             os.makedirs(folder)
 
     
@@ -153,24 +156,30 @@ class PreprocessData:
             signal_type (str, optional): Primarily to identify which folder to use. 'artifact' or 'non-artifact'
             num_images (int): Number of images to create. Optional for artifact compulsory for non-artifact.
         """
-        count_pulses=0
+
+        if signal_type == 'non-artifact' and num_images is None:
+            raise ValueError('num_images is required for non-artifact signal types')
+
+        count_pulses=1
+
         for signal in tqdm(raw_signal):
             pulses = self.get_pulses(signal, sigma=3)
 
             for p in pulses:
-                
-                # If the signal is non-artifact, and if num of pulses exceeds the num_images, stop
-                if signal_type=='non-artifact':
-                    if count_pulses >= num_images:
-                        print(f'{count_pulses+1} number of pulse images (non-artifact ridden) have been created.')		
-                        return
-
                 d = self.interpolate_and_normalize(p)
                 image = self.convert_1d_into_image(d)
                 
                 image_to_save = Image.fromarray(image.astype('uint8')*255, 'L')
 
-                image_to_save.save(f'{self.train_artifact_folder}{signal_type}_{count_pulses}.jpg')
+                # If the signal is non-artifact, and if num of pulses exceeds the num_images, stop
+                if signal_type=='non-artifact':
+                    image_to_save.save(f'{self.train_non_artifact_folder}{signal_type}_{count_pulses}.jpg')
+                    if count_pulses >= num_images:
+                        print(f'{count_pulses+1} number of pulse images (non-artifact ridden) have been created.')		
+                        return {count_pulses+1}
+                else:
+                    image_to_save.save(f'{self.train_artifact_folder}{signal_type}_{count_pulses}.jpg')
+                
                 count_pulses+=1
 
         print(f'{count_pulses+1} number of pulse images have been created for {signal_type}.')
@@ -218,3 +227,67 @@ class PreprocessData:
         image = np.rot90(image, k=1)
 
         return image
+    
+
+    def split_train_test_val(self, ratio = (0.6,0.2,0.2)):
+        """Check out the train_artifact_folder and then split them based on ratio as train/val/test.
+        Train non-artifact should be same number as train artifact.
+        Val non-artifact should be same number as val artifact.
+        Remaining should should go as non-artifact in test.
+
+        Args:
+            ratio (tuple, optional): train/val/test. Defaults to (0.6,0.2,0.2).
+        """
+        from sklearn.model_selection import train_test_split
+        
+        # Ensure the ratio sums to 1
+        if sum(ratio) != 1.0:
+            raise ValueError("Ratios must sum to 1")
+
+        train_ratio, val_ratio, test_ratio = ratio
+
+        # Handle artifact data splitting
+        artifact_files = os.listdir(self.train_artifact_folder)
+        num_artifacts = len(artifact_files)
+        num_val_artifacts = int(num_artifacts * val_ratio)
+        num_test_artifacts = int(num_artifacts * test_ratio)
+
+        train_artifact_files, temp_artifact_files = train_test_split(artifact_files, test_size=num_val_artifacts + num_test_artifacts)
+        val_artifact_files, test_artifact_files = train_test_split(temp_artifact_files, test_size=num_test_artifacts)
+
+        # Move artifact files
+        # self._move_files(train_artifact_files, self.train_artifact_folder)
+        self._move_files(val_artifact_files, self.train_artifact_folder, self.val_artifact_folder)
+        self._move_files(test_artifact_files, self.train_artifact_folder, self.test_artifact_folder)
+
+        # Handle non-artifact data splitting
+        non_artifact_files = os.listdir(self.train_non_artifact_folder)
+        num_train_non_artifacts = int(num_artifacts * train_ratio)
+        num_val_non_artifacts = int(num_artifacts * val_ratio)
+
+
+        temp_non_artifact_files, train_non_artifact_files  = train_test_split(non_artifact_files, test_size=num_train_non_artifacts)
+        test_non_artifact_files, val_non_artifact_files  = train_test_split(temp_non_artifact_files, test_size=num_val_non_artifacts)
+
+        # Move non-artifact files
+        # self._move_files(train_non_artifact_files, self.train_non_artifact_folder)
+        self._move_files(val_non_artifact_files, self.train_non_artifact_folder, self.val_non_artifact_folder)
+        self._move_files(test_non_artifact_files, self.train_non_artifact_folder, self.test_non_artifact_folder)
+
+        folders = [
+            self.train_artifact_folder, self.train_non_artifact_folder,
+            self.val_artifact_folder, self.val_non_artifact_folder,
+            self.test_artifact_folder, self.test_non_artifact_folder
+        ]
+        for folder in folders:
+            num_files = len([name for name in os.listdir(folder) if os.path.isfile(os.path.join(folder, name))])
+            print(f"{folder}: {num_files} files")
+
+
+
+    def _move_files(self, files, source_dir, target_dir):
+        """Helper function to move files to a designated directory."""
+        os.makedirs(target_dir, exist_ok=True)
+        for file in files:
+            shutil.move(os.path.join(source_dir, file), target_dir)
+
