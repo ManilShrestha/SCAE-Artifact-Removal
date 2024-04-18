@@ -25,9 +25,11 @@ creator.cleanup_folders()
 print('Getting signals with artifacts...')
 artifacts_raw = creator.get_artifacts_raw()
 print('Getting signals without artifacts...')
-non_artifacts_raw = creator.get_non_artifacts_raw()
+non_artifacts_raw = creator.get_non_artifacts_raw(num_segments=3000)
+
+print('Creating and saving images...')
 
 creator.create_images_from_signal(artifacts_raw, pulse_type='artifact')
-creator.create_images_from_signal(non_artifacts_raw, pulse_type='non-artifact', num_images=2551)
+creator.create_images_from_signal(non_artifacts_raw, pulse_type='non-artifact', num_images=10000)
 
 creator.split_train_test_val()
